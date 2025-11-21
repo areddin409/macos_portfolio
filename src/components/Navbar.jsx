@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 
-import { navIcons, navLinks } from "#constants";
+import { navIcons, navLinks } from "@/constants";
 
 const Navbar = () => {
   const [currentTime, setCurrentTime] = useState(dayjs());

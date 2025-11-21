@@ -20,18 +20,22 @@ const navIcons = [
   {
     id: 1,
     img: "/icons/wifi.svg",
+    alt: "WiFi Icon",
   },
   {
     id: 2,
     img: "/icons/search.svg",
+    alt: "Search Icon",
   },
   {
     id: 3,
     img: "/icons/user.svg",
+    alt: "User Icon",
   },
   {
     id: 4,
     img: "/icons/mode.svg",
+    alt: "Mode Icon",
   },
 ];
 
