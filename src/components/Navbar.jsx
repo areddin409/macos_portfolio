@@ -30,9 +30,9 @@ const Navbar = () => {
 
       <div>
         <ul>
-          {navIcons.map(({ id, img }) => (
+          {navIcons.map(({ id, img, alt }) => (
             <li key={id}>
-              <img src={img} alt={`Icon ${id}`} className="icon" />
+              <img src={img} alt={alt} className="icon" />
             </li>
           ))}
         </ul>
