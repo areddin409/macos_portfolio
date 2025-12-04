@@ -7,28 +7,24 @@ import useWindowStore from "@/store/window";
 const WindowWrapper = (Component, windowKey) => {
   const Wrapped = (props) => {
     const { focusWindow, windows } = useWindowStore();
-
-    if (!windows[windowKey]) {
-      console.warn(`WindowWrapper: No window found with key "${windowKey}"`);
-      return null;
-    }
-
-    const {
-      isOpen,
-      zIndex,
-      iconPosition,
-      dockIconPosition, // optional: if you store dock icon separately
-      isMinimized,
-      isMaximized,
-    } = windows[windowKey];
-
     const ref = useRef(null);
+
+    // Get window data (may be undefined)
+    const windowData = windows[windowKey];
+    const {
+      isOpen = false,
+      zIndex = 1000,
+      iconPosition = null,
+      dockIconPosition = null,
+      isMinimized = false,
+      isMaximized = false,
+    } = windowData || {};
 
     // OPEN ANIMATION (from icon to window position)
     useGSAP(
       () => {
         const el = ref.current;
-        if (!el || !isOpen) return;
+        if (!el || !isOpen || !windowData) return;
 
         el.style.display = "block";
         gsap.set(el, { transformOrigin: "center center" });
@@ -69,14 +65,14 @@ const WindowWrapper = (Component, windowKey) => {
         );
       },
       // re-run when open state or icon origin changes
-      [isOpen, iconPosition]
+      [isOpen, iconPosition, windowData]
     );
 
     // DRAGGABLE (click brings to front)
     useGSAP(
       () => {
         const el = ref.current;
-        if (!el) return;
+        if (!el || !windowData) return;
 
         const [instance] = Draggable.create(el, {
           // Draggable defaults: uses x/y transforms for movement
@@ -87,13 +83,13 @@ const WindowWrapper = (Component, windowKey) => {
           instance.kill();
         };
       },
-      [] // only once
+      [windowData] // re-run if window data changes
     );
 
     // MINIMIZE ANIMATION (genie-ish collapse into dock)
     useGSAP(() => {
       const el = ref.current;
-      if (!el || !isMinimized) return;
+      if (!el || !isMinimized || !windowData) return;
 
       // Respect prefers-reduced-motion
       if (
@@ -113,10 +109,6 @@ const WindowWrapper = (Component, windowKey) => {
       const dockY =
         originPos?.y ??
         (typeof window !== "undefined" ? window.innerHeight - 40 : 0);
-
-      // Get current transforms (from dragging)
-      const currentTransform = gsap.getProperty(el, "x");
-      const currentTransformY = gsap.getProperty(el, "y");
 
       // Current window geometry (includes current transforms)
       const rect = el.getBoundingClientRect();
@@ -157,29 +149,35 @@ const WindowWrapper = (Component, windowKey) => {
           opacity: 0,
           ease: "power2.in",
         });
-    }, [isMinimized, dockIconPosition, iconPosition]);
+    }, [isMinimized, dockIconPosition, iconPosition, windowData]);
 
     // HANDLE MAXIMIZE STATE - clear transforms when maximized
     useGSAP(() => {
       const el = ref.current;
-      if (!el) return;
+      if (!el || !windowData) return;
 
       if (isMaximized) {
         // Clear any drag transforms so the CSS maximized class works properly
         gsap.set(el, { x: 0, y: 0, clearProps: "transform" });
       }
-    }, [isMaximized]);
+    }, [isMaximized, windowData]);
 
     // HANDLE DISPLAY WHEN CLOSED (not minimized)
     useLayoutEffect(() => {
       const el = ref.current;
-      if (!el) return;
+      if (!el || !windowData) return;
 
       // Only handle display for open/close, not minimize (animation handles that)
       if (!isOpen) {
         el.style.display = "none";
       }
-    }, [isOpen]);
+    }, [isOpen, windowData]);
+
+    // Early return after all hooks have been called
+    if (!windowData) {
+      console.warn(`WindowWrapper: No window found with key "${windowKey}"`);
+      return null;
+    }
 
     return (
       <section
