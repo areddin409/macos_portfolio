@@ -106,12 +106,16 @@ body {
     }
 
     .minimize {
-      @apply size-3.5 rounded-full bg-[#ffc030];
+      @apply size-3.5 rounded-full bg-[#ffc030] cursor-pointer;
     }
 
     .maximize {
-      @apply size-3.5 rounded-full bg-[#2acb42];
+      @apply size-3.5 rounded-full bg-[#2acb42] cursor-pointer;
     }
+  }
+
+  .maximized {
+    @apply top-10! left-0! right-0! bottom-14! w-full! h-[calc(100vh-40px)]! translate-x-0! translate-y-0! max-w-full!;
   }
 
   #window-header {

@@ -67,7 +67,7 @@ const Dock = () => {
     };
   }, []);
 
-  const toggleApp = (app) => {
+  const toggleApp = (app, event) => {
     if (!app.canOpen) return;
 
     const window = windows[app.id];
@@ -77,13 +77,30 @@ const Dock = () => {
       return;
     }
 
-    if (window.isOpen) {
+    // If window is minimized, just restore it (un-minimize)
+    if (window.isMinimized) {
+      const iconElement = event.currentTarget;
+      const rect = iconElement.getBoundingClientRect();
+      const iconPosition = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        width: rect.width,
+        height: rect.height,
+      };
+      openWindow(app.id, null, iconPosition);
+    } else if (window.isOpen) {
       closeWindow(app.id);
     } else {
-      openWindow(app.id);
+      const iconElement = event.currentTarget;
+      const rect = iconElement.getBoundingClientRect();
+      const iconPosition = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        width: rect.width,
+        height: rect.height,
+      };
+      openWindow(app.id, null, iconPosition);
     }
-
-    console.log("Windows: ", windows);
   };
 
   return (
@@ -99,7 +116,7 @@ const Dock = () => {
               data-tooltip-content={name}
               data-tooltip-delay-show={150}
               disabled={!canOpen}
-              onClick={() => toggleApp({ id, canOpen })}
+              onClick={(e) => toggleApp({ id, canOpen }, e)}
             >
               <img
                 src={`/images/${icon}`}
