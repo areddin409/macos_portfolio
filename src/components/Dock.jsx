@@ -4,8 +4,10 @@ import gsap from "gsap";
 
 import { dockApps } from "@/constants";
 import { useGSAP } from "@gsap/react";
+import useWindowStore from "@/store/window";
 
 const Dock = () => {
+  const { openWindow, closeWindow, windows } = useWindowStore();
   const dockRef = useRef(null);
 
   useGSAP(() => {
@@ -65,8 +67,40 @@ const Dock = () => {
     };
   }, []);
 
-  const toggleApp = (app) => {
-    // TODO Implement open window logic
+  const toggleApp = (app, event) => {
+    if (!app.canOpen) return;
+
+    const window = windows[app.id];
+
+    if (!window) {
+      console.error(`No window configuration found for app id: ${app.id}`);
+      return;
+    }
+
+    // If window is minimized, just restore it (un-minimize)
+    if (window.isMinimized) {
+      const iconElement = event.currentTarget;
+      const rect = iconElement.getBoundingClientRect();
+      const iconPosition = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        width: rect.width,
+        height: rect.height,
+      };
+      openWindow(app.id, null, iconPosition);
+    } else if (window.isOpen) {
+      closeWindow(app.id);
+    } else {
+      const iconElement = event.currentTarget;
+      const rect = iconElement.getBoundingClientRect();
+      const iconPosition = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        width: rect.width,
+        height: rect.height,
+      };
+      openWindow(app.id, null, iconPosition);
+    }
   };
 
   return (
@@ -82,7 +116,7 @@ const Dock = () => {
               data-tooltip-content={name}
               data-tooltip-delay-show={150}
               disabled={!canOpen}
-              onClick={() => toggleApp({ id, canOpen })}
+              onClick={(e) => toggleApp({ id, canOpen }, e)}
             >
               <img
                 src={`/images/${icon}`}
