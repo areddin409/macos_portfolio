@@ -104,6 +104,8 @@ const WindowWrapper = (Component, windowKey) => {
     const { maximizeWindow, windows } = useWindowStore();
     const ref = useRef(null);
     const dragInstanceRef = useRef(null);
+    const poofTlRef = useRef(null);
+    const minimizeTlRef = useRef(null);
     const prevStateRef = useRef({ isOpen: false, isMinimized: false });
     const prevMaximizedRef = useRef(false);
 
@@ -198,6 +200,12 @@ const WindowWrapper = (Component, windowKey) => {
             el.style.display = "none";
             gsap.set(el, { clearProps: "all" });
           } else {
+            // Kill any existing poof animation
+            if (poofTlRef.current) {
+              poofTlRef.current.kill();
+              poofTlRef.current = null;
+            }
+
             // Window shrink
             gsap.to(el, {
               scale: 0.5,
@@ -207,9 +215,10 @@ const WindowWrapper = (Component, windowKey) => {
             });
 
             // Poof effect
-            createPoofEffect(el, () => {
+            poofTlRef.current = createPoofEffect(el, () => {
               el.style.display = "none";
               gsap.set(el, { clearProps: "transform,opacity,scale" });
+              poofTlRef.current = null;
             });
           }
         }
@@ -239,14 +248,15 @@ const WindowWrapper = (Component, windowKey) => {
 
             gsap.set(el, { transformOrigin: "bottom center" });
 
-            const tl = gsap.timeline({
+            minimizeTlRef.current = gsap.timeline({
               onComplete: () => {
                 el.style.display = "none";
                 gsap.set(el, { clearProps: "transform" });
+                minimizeTlRef.current = null;
               },
             });
 
-            tl.to(el, {
+            minimizeTlRef.current.to(el, {
               duration: 0.12,
               scaleY: 1.04,
               scaleX: 0.98,
@@ -330,6 +340,18 @@ const WindowWrapper = (Component, windowKey) => {
         // Update state refs
         prevStateRef.current = { isOpen, isMinimized };
         prevMaximizedRef.current = isMaximized;
+
+        // Cleanup function
+        return () => {
+          if (poofTlRef.current) {
+            poofTlRef.current.kill();
+            poofTlRef.current = null;
+          }
+          if (minimizeTlRef.current) {
+            minimizeTlRef.current.kill();
+            minimizeTlRef.current = null;
+          }
+        };
       },
       {
         dependencies: [
