@@ -256,20 +256,22 @@ const WindowWrapper = (Component, windowKey) => {
               },
             });
 
-            minimizeTlRef.current.to(el, {
-              duration: 0.12,
-              scaleY: 1.04,
-              scaleX: 0.98,
-              ease: "power1.out",
-            }).to(el, {
-              duration: MOTION.durations.minimize,
-              x: `+=${toX}`,
-              y: `+=${toY}`,
-              scaleY: 0,
-              scaleX: 0.15,
-              opacity: 0,
-              ease: MOTION.eases.minimize,
-            });
+            minimizeTlRef.current
+              .to(el, {
+                duration: 0.12,
+                scaleY: 1.04,
+                scaleX: 0.98,
+                ease: "power1.out",
+              })
+              .to(el, {
+                duration: MOTION.durations.minimize,
+                x: `+=${toX}`,
+                y: `+=${toY}`,
+                scaleY: 0,
+                scaleX: 0.15,
+                opacity: 0,
+                ease: MOTION.eases.minimize,
+              });
           }
         }
 
