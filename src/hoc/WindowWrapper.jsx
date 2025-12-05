@@ -8,6 +8,7 @@ const WindowWrapper = (Component, windowKey) => {
   const Wrapped = (props) => {
     const { focusWindow, windows } = useWindowStore();
     const ref = useRef(null);
+    const prevStateRef = useRef({ isOpen: false, isMinimized: false });
 
     // Get window data (may be undefined)
     const windowData = windows[windowKey];
@@ -20,26 +21,47 @@ const WindowWrapper = (Component, windowKey) => {
       isMaximized = false,
     } = windowData || {};
 
-    // OPEN ANIMATION (from icon to window position)
-    useGSAP(
-      () => {
-        const el = ref.current;
-        if (!el || !isOpen || !windowData) return;
+    // 1. DRAGGABLE - Make window draggable by header and focus on click
+    useGSAP(() => {
+      const el = ref.current;
+      if (!el || !windowData) return;
+
+      const header = el.querySelector("#window-header");
+      if (!header) return;
+
+      const [instance] = Draggable.create(el, {
+        trigger: header,
+        onPress: () => focusWindow(windowKey),
+      });
+
+      return () => instance.kill();
+    }, [windowData]);
+
+    // 2. MAIN ANIMATION CONTROLLER - Handles open, close, minimize
+    useGSAP(() => {
+      const el = ref.current;
+      if (!el || !windowData) return;
+
+      const prevState = prevStateRef.current;
+      const wasOpen = prevState.isOpen;
+      const wasMinimized = prevState.isMinimized;
+
+      // OPENING: window opens (wasn't open before, now is open)
+      if (!wasOpen && isOpen && !isMinimized) {
+        // Kill any running animations first
+        gsap.killTweensOf(el);
 
         el.style.display = "block";
         gsap.set(el, { transformOrigin: "center center" });
 
-        // Get the window's final (layout) position
         const rect = el.getBoundingClientRect();
         const windowCenterX = rect.left + rect.width / 2;
         const windowCenterY = rect.top + rect.height / 2;
 
-        // Default open-from offset (e.g. small lift)
         let fromX = 0;
         let fromY = 40;
         let fromScale = 0.8;
 
-        // If we know the app/dock icon position, open from there
         if (iconPosition) {
           fromX = iconPosition.x - windowCenterX;
           fromY = iconPosition.y - windowCenterY;
@@ -48,12 +70,7 @@ const WindowWrapper = (Component, windowKey) => {
 
         gsap.fromTo(
           el,
-          {
-            scale: fromScale,
-            opacity: 0,
-            x: fromX,
-            y: fromY,
-          },
+          { scale: fromScale, opacity: 0, x: fromX, y: fromY },
           {
             scale: 1,
             opacity: 1,
@@ -63,84 +80,114 @@ const WindowWrapper = (Component, windowKey) => {
             ease: "power3.out",
           }
         );
-      },
-      // re-run when open state or icon origin changes
-      [isOpen, iconPosition, windowData]
-    );
-
-    // DRAGGABLE (click brings to front)
-    useGSAP(
-      () => {
-        const el = ref.current;
-        if (!el || !windowData) return;
-
-        const [instance] = Draggable.create(el, {
-          // Draggable defaults: uses x/y transforms for movement
-          onPress: () => focusWindow(windowKey),
-        });
-
-        return () => {
-          instance.kill();
-        };
-      },
-      [windowData] // re-run if window data changes
-    );
-
-    // MINIMIZE ANIMATION (genie-ish collapse into dock)
-    useGSAP(() => {
-      const el = ref.current;
-      if (!el || !isMinimized || !windowData) return;
-
-      // Respect prefers-reduced-motion
-      if (
-        typeof window !== "undefined" &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      ) {
-        el.style.display = "none";
-        return;
       }
 
-      // Prefer explicit dockIconPosition; fall back to app icon; then center bottom
-      const originPos = dockIconPosition || iconPosition;
+      // CLOSING: window closes (was open, now not open)
+      // Use wasMinimized to check if it was minimizing before close
+      else if (wasOpen && !isOpen && !wasMinimized) {
+        // Kill any running animations first
+        gsap.killTweensOf(el);
 
-      const dockX =
-        originPos?.x ??
-        (typeof window !== "undefined" ? window.innerWidth / 2 : 0);
-      const dockY =
-        originPos?.y ??
-        (typeof window !== "undefined" ? window.innerHeight - 40 : 0);
+        // Create poof particles at center
+        const rect = el.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
 
-      // Current window geometry (includes current transforms)
-      const rect = el.getBoundingClientRect();
-      const windowCenterX = rect.left + rect.width / 2;
-      const windowBottom = rect.bottom;
+        // Create container for poof effect
+        const poofContainer = document.createElement("div");
+        poofContainer.style.position = "fixed";
+        poofContainer.style.left = `${centerX}px`;
+        poofContainer.style.top = `${centerY}px`;
+        poofContainer.style.pointerEvents = "none";
+        poofContainer.style.zIndex = "9999";
+        document.body.appendChild(poofContainer);
 
-      // Calculate absolute distance from current visual position to dock
-      const toX = dockX - windowCenterX;
-      const toY = dockY - windowBottom;
+        // Create multiple smoke particles
+        const particleCount = 16;
+        const particles = [];
 
-      gsap.set(el, { transformOrigin: "bottom center" });
+        for (let i = 0; i < particleCount; i++) {
+          const particle = document.createElement("div");
+          particle.style.position = "absolute";
+          particle.style.width = "20px";
+          particle.style.height = "20px";
+          particle.style.borderRadius = "50%";
+          particle.style.backgroundColor = "#d1d5db";
+          particle.style.filter = "blur(4px)";
+          poofContainer.appendChild(particle);
+          particles.push(particle);
+        }
 
-      const tl = gsap.timeline({
-        onComplete: () => {
-          // Hide and reset transforms so future open animation
-          // measures layout from the "resting" position.
+        // Animate window shrinking into poof
+        gsap.to(el, {
+          scale: 0.5,
+          opacity: 0,
+          duration: 0.15,
+          ease: "power2.in",
+        });
+
+        // Animate particles spreading out and fading
+        particles.forEach((particle, i) => {
+          const angle = (i / particleCount) * Math.PI * 2;
+          const distance = 40 + Math.random() * 30;
+          const x = Math.cos(angle) * distance;
+          const y = Math.sin(angle) * distance - 20; // Slight upward bias
+
+          gsap.fromTo(
+            particle,
+            {
+              x: 0,
+              y: 0,
+              scale: 0,
+              opacity: 0.8,
+            },
+            {
+              x,
+              y,
+              scale: 1 + Math.random() * 0.5,
+              opacity: 0,
+              duration: 0.4 + Math.random() * 0.2,
+              ease: "power2.out",
+            }
+          );
+        });
+
+        // Cleanup
+        setTimeout(() => {
           el.style.display = "none";
-          gsap.set(el, {
-            clearProps: "transform", // clears x, y, scale, etc.
-          });
-        },
-      });
+          gsap.set(el, { clearProps: "transform,opacity,scale" });
+          document.body.removeChild(poofContainer);
+        }, 600);
+      }
 
-      // Smooth, organic genie effect
-      tl.to(el, {
-        duration: 0.12,
-        scaleY: 1.04,
-        scaleX: 0.98,
-        ease: "power1.out",
-      })
-        // Single smooth collapse with all transformations happening together
-        .to(el, {
+      // MINIMIZING: window gets minimized (is still open but becomes minimized)
+      else if (isOpen && !wasMinimized && isMinimized) {
+        const originPos = dockIconPosition || iconPosition;
+        const dockX = originPos?.x ?? window.innerWidth / 2;
+        const dockY = originPos?.y ?? window.innerHeight - 40;
+
+        const rect = el.getBoundingClientRect();
+        const windowCenterX = rect.left + rect.width / 2;
+        const windowBottom = rect.bottom;
+
+        const toX = dockX - windowCenterX;
+        const toY = dockY - windowBottom;
+
+        gsap.set(el, { transformOrigin: "bottom center" });
+
+        const tl = gsap.timeline({
+          onComplete: () => {
+            el.style.display = "none";
+            gsap.set(el, { clearProps: "transform" });
+          },
+        });
+
+        tl.to(el, {
+          duration: 0.12,
+          scaleY: 1.04,
+          scaleX: 0.98,
+          ease: "power1.out",
+        }).to(el, {
           duration: 0.55,
           x: `+=${toX}`,
           y: `+=${toY}`,
@@ -149,29 +196,42 @@ const WindowWrapper = (Component, windowKey) => {
           opacity: 0,
           ease: "power2.in",
         });
-    }, [isMinimized, dockIconPosition, iconPosition, windowData]);
+      }
 
-    // HANDLE MAXIMIZE STATE - clear transforms when maximized
+      // UN-MINIMIZING: window was minimized, now opening again
+      else if (wasMinimized && !isMinimized && isOpen) {
+        el.style.display = "block";
+        gsap.set(el, { clearProps: "transform" });
+        gsap.fromTo(
+          el,
+          { opacity: 0, scale: 0.95 },
+          { opacity: 1, scale: 1, duration: 0.3, ease: "power2.out" }
+        );
+      }
+
+      // Update previous state
+      prevStateRef.current = { isOpen, isMinimized };
+    }, [isOpen, isMinimized, iconPosition, dockIconPosition, windowData]);
+
+    // 3. MAXIMIZE HANDLER - Clear transforms when maximized
     useGSAP(() => {
       const el = ref.current;
       if (!el || !windowData) return;
 
       if (isMaximized) {
-        // Clear any drag transforms so the CSS maximized class works properly
         gsap.set(el, { x: 0, y: 0, clearProps: "transform" });
       }
     }, [isMaximized, windowData]);
 
-    // HANDLE DISPLAY WHEN CLOSED (not minimized)
+    // 4. INITIAL DISPLAY STATE
     useLayoutEffect(() => {
       const el = ref.current;
       if (!el || !windowData) return;
 
-      // Only handle display for open/close, not minimize (animation handles that)
       if (!isOpen) {
         el.style.display = "none";
       }
-    }, [isOpen, windowData]);
+    }, [windowData]);
 
     // Early return after all hooks have been called
     if (!windowData) {
@@ -184,7 +244,7 @@ const WindowWrapper = (Component, windowKey) => {
         id={windowKey}
         ref={ref}
         style={{ zIndex }}
-        className={`absolute will-change-transform [backface-visibility:hidden] ${
+        className={`absolute will-change-transform ${
           isMaximized ? "maximized inset-0" : ""
         }`}
       >
