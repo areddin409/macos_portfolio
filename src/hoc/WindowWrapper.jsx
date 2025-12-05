@@ -224,9 +224,11 @@ const WindowWrapper = (Component, windowKey) => {
           } else {
             const originPos = dockIconPosition || iconPosition;
             const dockX =
-              originPos?.x ?? (typeof window !== "undefined" ? window.innerWidth / 2 : 0);
+              originPos?.x ??
+              (typeof window !== "undefined" ? window.innerWidth / 2 : 0);
             const dockY =
-              originPos?.y ?? (typeof window !== "undefined" ? window.innerHeight - 40 : 0);
+              originPos?.y ??
+              (typeof window !== "undefined" ? window.innerHeight - 40 : 0);
 
             const rect = el.getBoundingClientRect();
             const windowCenterX = rect.left + rect.width / 2;
@@ -295,7 +297,9 @@ const WindowWrapper = (Component, windowKey) => {
                 duration: MOTION.durations.maximize,
                 ease: MOTION.eases.maximize,
                 onComplete: () => {
-                  gsap.set(el, { clearProps: "transform,borderRadius,opacity" });
+                  gsap.set(el, {
+                    clearProps: "transform,borderRadius,opacity",
+                  });
                 },
               }
             );
@@ -328,7 +332,14 @@ const WindowWrapper = (Component, windowKey) => {
         prevMaximizedRef.current = isMaximized;
       },
       {
-        dependencies: [isOpen, isMinimized, isMaximized, iconPosition, dockIconPosition, windowData],
+        dependencies: [
+          isOpen,
+          isMinimized,
+          isMaximized,
+          iconPosition,
+          dockIconPosition,
+          windowData,
+        ],
         scope: ref,
       }
     );
