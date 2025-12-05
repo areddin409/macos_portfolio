@@ -4,13 +4,110 @@ import { useGSAP } from "@gsap/react";
 import { Draggable } from "gsap/Draggable";
 import useWindowStore from "@/store/window";
 
+// Motion system: timing tokens and eases
+const MOTION = {
+  durations: {
+    open: 0.4,
+    close: 0.2,
+    minimize: 0.55,
+    maximize: 0.4,
+    poof: 0.4,
+  },
+  eases: {
+    open: "power3.out",
+    close: "power2.in",
+    minimize: "power2.in",
+    maximize: "back.out(1.2)",
+    restore: "back.out(1.7)",
+    poof: "power2.out",
+  },
+};
+
+// Check if user prefers reduced motion
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+// Helper: create poof particles using GSAP
+const createPoofEffect = (el, onComplete) => {
+  if (prefersReducedMotion()) {
+    onComplete?.();
+    return null;
+  }
+
+  const rect = el.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+
+  const container = document.createElement("div");
+  container.style.cssText = `
+    position: fixed;
+    left: ${centerX}px;
+    top: ${centerY}px;
+    pointer-events: none;
+    z-index: 9999;
+  `;
+  document.body.appendChild(container);
+
+  const particleCount = 16;
+  const particles = [];
+
+  for (let i = 0; i < particleCount; i++) {
+    const particle = document.createElement("div");
+    particle.style.cssText = `
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background-color: #d1d5db;
+      filter: blur(4px);
+    `;
+    container.appendChild(particle);
+    particles.push(particle);
+  }
+
+  const tl = gsap.timeline({
+    onComplete: () => {
+      if (document.body.contains(container)) {
+        document.body.removeChild(container);
+      }
+      onComplete?.();
+    },
+  });
+
+  particles.forEach((particle, i) => {
+    const angle = (i / particleCount) * Math.PI * 2;
+    const distance = 40 + Math.random() * 30;
+    const x = Math.cos(angle) * distance;
+    const y = Math.sin(angle) * distance - 20;
+
+    tl.fromTo(
+      particle,
+      { x: 0, y: 0, scale: 0, opacity: 0.8 },
+      {
+        x,
+        y,
+        scale: 1 + Math.random() * 0.5,
+        opacity: 0,
+        duration: MOTION.durations.poof + Math.random() * 0.2,
+        ease: MOTION.eases.poof,
+      },
+      0
+    );
+  });
+
+  return tl;
+};
+
 const WindowWrapper = (Component, windowKey) => {
   const Wrapped = (props) => {
-    const { focusWindow, windows } = useWindowStore();
+    const { maximizeWindow, windows } = useWindowStore();
     const ref = useRef(null);
+    const dragInstanceRef = useRef(null);
     const prevStateRef = useRef({ isOpen: false, isMinimized: false });
+    const prevMaximizedRef = useRef(false);
 
-    // Get window data (may be undefined)
+    // Get window data
     const windowData = windows[windowKey];
     const {
       isOpen = false,
@@ -21,209 +118,230 @@ const WindowWrapper = (Component, windowKey) => {
       isMaximized = false,
     } = windowData || {};
 
-    // 1. DRAGGABLE - Make window draggable by header and focus on click
-    useGSAP(() => {
-      const el = ref.current;
-      if (!el || !windowData) return;
+    // Single unified GSAP context for all animations and interactions
+    useGSAP(
+      () => {
+        const el = ref.current;
+        if (!el || !windowData) return;
 
-      const header = el.querySelector("#window-header");
-      if (!header) return;
+        const reducedMotion = prefersReducedMotion();
+        const prevState = prevStateRef.current;
+        const wasOpen = prevState.isOpen;
+        const wasMinimized = prevState.isMinimized;
+        const wasMaximized = prevMaximizedRef.current;
 
-      const [instance] = Draggable.create(el, {
-        trigger: header,
-        onPress: () => focusWindow(windowKey),
-      });
+        // DRAGGABLE SETUP - only when window is open
+        if (isOpen && !dragInstanceRef.current) {
+          const header = el.querySelector("#window-header");
+          if (header) {
+            dragInstanceRef.current = Draggable.create(el, {
+              trigger: header,
+              type: "x,y",
+              bounds: typeof window !== "undefined" ? window : undefined,
+              edgeResistance: 0.65,
+              onClick: function () {
+                const now = Date.now();
+                const lastClick = this.lastClickTime || 0;
+                this.lastClickTime = now;
 
-      return () => instance.kill();
-    }, [windowData]);
-
-    // 2. MAIN ANIMATION CONTROLLER - Handles open, close, minimize
-    useGSAP(() => {
-      const el = ref.current;
-      if (!el || !windowData) return;
-
-      const prevState = prevStateRef.current;
-      const wasOpen = prevState.isOpen;
-      const wasMinimized = prevState.isMinimized;
-
-      // OPENING: window opens (wasn't open before, now is open)
-      if (!wasOpen && isOpen && !isMinimized) {
-        // Kill any running animations first
-        gsap.killTweensOf(el);
-
-        el.style.display = "block";
-        gsap.set(el, { transformOrigin: "center center" });
-
-        const rect = el.getBoundingClientRect();
-        const windowCenterX = rect.left + rect.width / 2;
-        const windowCenterY = rect.top + rect.height / 2;
-
-        let fromX = 0;
-        let fromY = 40;
-        let fromScale = 0.8;
-
-        if (iconPosition) {
-          fromX = iconPosition.x - windowCenterX;
-          fromY = iconPosition.y - windowCenterY;
-          fromScale = 0.1;
-        }
-
-        gsap.fromTo(
-          el,
-          { scale: fromScale, opacity: 0, x: fromX, y: fromY },
-          {
-            scale: 1,
-            opacity: 1,
-            x: 0,
-            y: 0,
-            duration: 0.4,
-            ease: "power3.out",
+                if (now - lastClick < 300) {
+                  maximizeWindow(windowKey);
+                }
+              },
+            })[0];
           }
-        );
-      }
-
-      // CLOSING: window closes (was open, now not open)
-      // Use wasMinimized to check if it was minimizing before close
-      else if (wasOpen && !isOpen && !wasMinimized) {
-        // Kill any running animations first
-        gsap.killTweensOf(el);
-
-        // Create poof particles at center
-        const rect = el.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-
-        // Create container for poof effect
-        const poofContainer = document.createElement("div");
-        poofContainer.style.position = "fixed";
-        poofContainer.style.left = `${centerX}px`;
-        poofContainer.style.top = `${centerY}px`;
-        poofContainer.style.pointerEvents = "none";
-        poofContainer.style.zIndex = "9999";
-        document.body.appendChild(poofContainer);
-
-        // Create multiple smoke particles
-        const particleCount = 16;
-        const particles = [];
-
-        for (let i = 0; i < particleCount; i++) {
-          const particle = document.createElement("div");
-          particle.style.position = "absolute";
-          particle.style.width = "20px";
-          particle.style.height = "20px";
-          particle.style.borderRadius = "50%";
-          particle.style.backgroundColor = "#d1d5db";
-          particle.style.filter = "blur(4px)";
-          poofContainer.appendChild(particle);
-          particles.push(particle);
         }
 
-        // Animate window shrinking into poof
-        gsap.to(el, {
-          scale: 0.5,
-          opacity: 0,
-          duration: 0.15,
-          ease: "power2.in",
-        });
+        // OPENING ANIMATION
+        if (!wasOpen && isOpen && !isMinimized) {
+          gsap.killTweensOf(el);
+          el.style.display = "block";
+          gsap.set(el, { transformOrigin: "center center" });
 
-        // Animate particles spreading out and fading
-        particles.forEach((particle, i) => {
-          const angle = (i / particleCount) * Math.PI * 2;
-          const distance = 40 + Math.random() * 30;
-          const x = Math.cos(angle) * distance;
-          const y = Math.sin(angle) * distance - 20; // Slight upward bias
+          if (reducedMotion) {
+            gsap.set(el, { opacity: 1, scale: 1, x: 0, y: 0 });
+          } else {
+            const rect = el.getBoundingClientRect();
+            const windowCenterX = rect.left + rect.width / 2;
+            const windowCenterY = rect.top + rect.height / 2;
 
-          gsap.fromTo(
-            particle,
-            {
-              x: 0,
-              y: 0,
-              scale: 0,
-              opacity: 0.8,
-            },
-            {
-              x,
-              y,
-              scale: 1 + Math.random() * 0.5,
-              opacity: 0,
-              duration: 0.4 + Math.random() * 0.2,
-              ease: "power2.out",
+            let fromX = 0;
+            let fromY = 40;
+            let fromScale = 0.8;
+
+            if (iconPosition) {
+              fromX = iconPosition.x - windowCenterX;
+              fromY = iconPosition.y - windowCenterY;
+              fromScale = 0.1;
             }
-          );
-        });
 
-        // Cleanup
-        setTimeout(() => {
-          el.style.display = "none";
-          gsap.set(el, { clearProps: "transform,opacity,scale" });
-          document.body.removeChild(poofContainer);
-        }, 600);
-      }
+            gsap.fromTo(
+              el,
+              { scale: fromScale, opacity: 0, x: fromX, y: fromY },
+              {
+                scale: 1,
+                opacity: 1,
+                x: 0,
+                y: 0,
+                duration: MOTION.durations.open,
+                ease: MOTION.eases.open,
+              }
+            );
+          }
+        }
 
-      // MINIMIZING: window gets minimized (is still open but becomes minimized)
-      else if (isOpen && !wasMinimized && isMinimized) {
-        const originPos = dockIconPosition || iconPosition;
-        const dockX = originPos?.x ?? window.innerWidth / 2;
-        const dockY = originPos?.y ?? window.innerHeight - 40;
+        // CLOSING ANIMATION (with poof effect)
+        else if (wasOpen && !isOpen && !wasMinimized) {
+          gsap.killTweensOf(el);
 
-        const rect = el.getBoundingClientRect();
-        const windowCenterX = rect.left + rect.width / 2;
-        const windowBottom = rect.bottom;
+          if (reducedMotion) {
+            el.style.display = "none";
+            gsap.set(el, { clearProps: "all" });
+          } else {
+            // Window shrink
+            gsap.to(el, {
+              scale: 0.5,
+              opacity: 0,
+              duration: MOTION.durations.close,
+              ease: MOTION.eases.close,
+            });
 
-        const toX = dockX - windowCenterX;
-        const toY = dockY - windowBottom;
+            // Poof effect
+            createPoofEffect(el, () => {
+              el.style.display = "none";
+              gsap.set(el, { clearProps: "transform,opacity,scale" });
+            });
+          }
+        }
 
-        gsap.set(el, { transformOrigin: "bottom center" });
+        // MINIMIZING ANIMATION (genie effect)
+        else if (isOpen && !wasMinimized && isMinimized) {
+          gsap.killTweensOf(el);
 
-        const tl = gsap.timeline({
-          onComplete: () => {
+          if (reducedMotion) {
             el.style.display = "none";
             gsap.set(el, { clearProps: "transform" });
-          },
-        });
+          } else {
+            const originPos = dockIconPosition || iconPosition;
+            const dockX =
+              originPos?.x ?? (typeof window !== "undefined" ? window.innerWidth / 2 : 0);
+            const dockY =
+              originPos?.y ?? (typeof window !== "undefined" ? window.innerHeight - 40 : 0);
 
-        tl.to(el, {
-          duration: 0.12,
-          scaleY: 1.04,
-          scaleX: 0.98,
-          ease: "power1.out",
-        }).to(el, {
-          duration: 0.55,
-          x: `+=${toX}`,
-          y: `+=${toY}`,
-          scaleY: 0,
-          scaleX: 0.15,
-          opacity: 0,
-          ease: "power2.in",
-        });
+            const rect = el.getBoundingClientRect();
+            const windowCenterX = rect.left + rect.width / 2;
+            const windowBottom = rect.bottom;
+
+            const toX = dockX - windowCenterX;
+            const toY = dockY - windowBottom;
+
+            gsap.set(el, { transformOrigin: "bottom center" });
+
+            const tl = gsap.timeline({
+              onComplete: () => {
+                el.style.display = "none";
+                gsap.set(el, { clearProps: "transform" });
+              },
+            });
+
+            tl.to(el, {
+              duration: 0.12,
+              scaleY: 1.04,
+              scaleX: 0.98,
+              ease: "power1.out",
+            }).to(el, {
+              duration: MOTION.durations.minimize,
+              x: `+=${toX}`,
+              y: `+=${toY}`,
+              scaleY: 0,
+              scaleX: 0.15,
+              opacity: 0,
+              ease: MOTION.eases.minimize,
+            });
+          }
+        }
+
+        // UN-MINIMIZING ANIMATION
+        else if (wasMinimized && !isMinimized && isOpen) {
+          gsap.killTweensOf(el);
+          el.style.display = "block";
+          gsap.set(el, { clearProps: "transform" });
+
+          if (reducedMotion) {
+            gsap.set(el, { opacity: 1, scale: 1 });
+          } else {
+            gsap.fromTo(
+              el,
+              { opacity: 0, scale: 0.95 },
+              { opacity: 1, scale: 1, duration: 0.3, ease: "power2.out" }
+            );
+          }
+        }
+
+        // MAXIMIZING ANIMATION
+        if (!wasMaximized && isMaximized) {
+          gsap.killTweensOf(el);
+
+          if (reducedMotion) {
+            gsap.set(el, { clearProps: "transform,borderRadius,opacity" });
+          } else {
+            gsap.fromTo(
+              el,
+              { scale: 0.7, opacity: 0.8, borderRadius: "20px" },
+              {
+                scale: 1,
+                opacity: 1,
+                borderRadius: "0px",
+                duration: MOTION.durations.maximize,
+                ease: MOTION.eases.maximize,
+                onComplete: () => {
+                  gsap.set(el, { clearProps: "transform,borderRadius,opacity" });
+                },
+              }
+            );
+          }
+        }
+
+        // RESTORING FROM MAXIMIZE
+        else if (wasMaximized && !isMaximized) {
+          gsap.killTweensOf(el);
+
+          if (reducedMotion) {
+            gsap.set(el, { clearProps: "scale,borderRadius" });
+          } else {
+            gsap.fromTo(
+              el,
+              { scale: 1, borderRadius: "0px" },
+              {
+                scale: 1,
+                borderRadius: "12px",
+                duration: MOTION.durations.maximize,
+                ease: MOTION.eases.restore,
+                clearProps: "scale,borderRadius",
+              }
+            );
+          }
+        }
+
+        // Update state refs
+        prevStateRef.current = { isOpen, isMinimized };
+        prevMaximizedRef.current = isMaximized;
+      },
+      {
+        dependencies: [isOpen, isMinimized, isMaximized, iconPosition, dockIconPosition, windowData],
+        scope: ref,
       }
+    );
 
-      // UN-MINIMIZING: window was minimized, now opening again
-      else if (wasMinimized && !isMinimized && isOpen) {
-        el.style.display = "block";
-        gsap.set(el, { clearProps: "transform" });
-        gsap.fromTo(
-          el,
-          { opacity: 0, scale: 0.95 },
-          { opacity: 1, scale: 1, duration: 0.3, ease: "power2.out" }
-        );
+    // Cleanup draggable when window closes
+    useLayoutEffect(() => {
+      if (!isOpen && dragInstanceRef.current) {
+        dragInstanceRef.current.kill();
+        dragInstanceRef.current = null;
       }
+    }, [isOpen]);
 
-      // Update previous state
-      prevStateRef.current = { isOpen, isMinimized };
-    }, [isOpen, isMinimized, iconPosition, dockIconPosition, windowData]);
-
-    // 3. MAXIMIZE HANDLER - Clear transforms when maximized
-    useGSAP(() => {
-      const el = ref.current;
-      if (!el || !windowData) return;
-
-      if (isMaximized) {
-        gsap.set(el, { x: 0, y: 0, clearProps: "transform" });
-      }
-    }, [isMaximized, windowData]);
-
-    // 4. INITIAL DISPLAY STATE
+    // Initial display state
     useLayoutEffect(() => {
       const el = ref.current;
       if (!el || !windowData) return;
@@ -233,7 +351,7 @@ const WindowWrapper = (Component, windowKey) => {
       }
     }, [windowData]);
 
-    // Early return after all hooks have been called
+    // Early return after all hooks
     if (!windowData) {
       console.warn(`WindowWrapper: No window found with key "${windowKey}"`);
       return null;
