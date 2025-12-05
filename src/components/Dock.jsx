@@ -7,7 +7,7 @@ import { useGSAP } from "@gsap/react";
 import useWindowStore from "@/store/window";
 
 const Dock = () => {
-  const { openWindow, closeWindow, windows } = useWindowStore();
+  const { openWindow, minimizeWindow, windows } = useWindowStore();
   const dockRef = useRef(null);
 
   useGSAP(() => {
@@ -89,7 +89,8 @@ const Dock = () => {
       };
       openWindow(app.id, null, iconPosition);
     } else if (window.isOpen) {
-      closeWindow(app.id);
+      // If already open, minimize it instead of closing
+      minimizeWindow(app.id);
     } else {
       const iconElement = event.currentTarget;
       const rect = iconElement.getBoundingClientRect();
