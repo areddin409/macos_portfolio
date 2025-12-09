@@ -101,7 +101,7 @@ const createPoofEffect = (el, onComplete) => {
 
 const WindowWrapper = (Component, windowKey) => {
   const Wrapped = (props) => {
-    const { maximizeWindow, windows } = useWindowStore();
+    const { maximizeWindow, focusWindow, windows } = useWindowStore();
     const ref = useRef(null);
     const dragInstanceRef = useRef(null);
     const poofTlRef = useRef(null);
@@ -141,6 +141,9 @@ const WindowWrapper = (Component, windowKey) => {
               type: "x,y",
               bounds: typeof window !== "undefined" ? window : undefined,
               edgeResistance: 0.65,
+              onDragStart: function () {
+                focusWindow(windowKey);
+              },
               onClick: function () {
                 const now = Date.now();
                 const lastClick = this.lastClickTime || 0;

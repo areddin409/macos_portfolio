@@ -42,12 +42,21 @@ const useWindowStore = create(
       set((state) => {
         const window = state.windows[windowKey];
         if (!window) return;
+
+        // Find the highest z-index among all open windows
+        const maxZIndex = Math.max(
+          INITIAL_Z_INDEX,
+          ...Object.values(state.windows)
+            .filter((w) => w.isOpen)
+            .map((w) => w.zIndex)
+        );
+
         window.isOpen = true;
         window.isMinimized = false;
-        window.zIndex = state.nextZIndex;
+        window.zIndex = maxZIndex + 1;
         window.data = data ?? window.data;
         window.iconPosition = iconPosition;
-        state.nextZIndex++;
+        state.nextZIndex = maxZIndex + 2;
       }),
 
     /**
@@ -75,8 +84,19 @@ const useWindowStore = create(
     focusWindow: (windowKey) =>
       set((state) => {
         const window = state.windows[windowKey];
-        if (!window) return;
-        window.zIndex = state.nextZIndex++;
+        if (!window || !window.isOpen) return;
+
+        // Find the highest z-index among all open windows
+        const maxZIndex = Math.max(
+          ...Object.values(state.windows)
+            .filter((w) => w.isOpen && !w.isMinimized)
+            .map((w) => w.zIndex)
+        );
+
+        // Only update if this window isn't already on top
+        if (window.zIndex < maxZIndex) {
+          window.zIndex = state.nextZIndex++;
+        }
       }),
 
     /**
