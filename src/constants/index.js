@@ -78,28 +78,85 @@ const dockApps = [
   },
 ];
 
-const blogPosts = [
+const learningJourney = [
   {
     id: 1,
-    date: "Sep 2, 2025",
-    title:
-      "TypeScript Explained: What It Is, Why It Matters, and How to Master It",
-    image: "/images/blog1.png",
-    link: "https://jsmastery.com/blog/typescript-explained-what-it-is-why-it-matters-and-how-to-master-it",
+    category: "Course",
+    title: "Advanced React Patterns & Performance",
+    description:
+      "Deep dive into React hooks, context patterns, and optimization techniques",
+    link: "https://react.dev",
+    image: "/icons/react-icon.svg",
   },
   {
     id: 2,
-    date: "Aug 28, 2025",
-    title: "The Ultimate Guide to Mastering Three.js for 3D Development",
-    image: "/images/blog2.png",
-    link: "https://jsmastery.com/blog/the-ultimate-guide-to-mastering-three-js-for-3d-development",
+    category: "Tutorial",
+    title: "Mastering GSAP Animations",
+    description: "Creating smooth, performant animations with GreenSock",
+    link: "https://gsap.com",
+    image: "/icons/gsap.svg",
   },
   {
     id: 3,
-    date: "Aug 15, 2025",
-    title: "The Ultimate Guide to Mastering GSAP Animations",
+    category: "Resource",
+    title: "TypeScript Best Practices",
+    description: "Writing type-safe, maintainable code in modern TypeScript",
+    link: "https://www.typescriptlang.org",
+    image: "/icons/ts-logo-128.png",
+  },
+];
+
+const techRecommendations = [
+  {
+    id: 1,
+    category: "Framework",
+    title: "Next.js",
+    description: "The React framework for production-ready applications",
+    link: "https://nextjs.org",
+    image: "/images/blog1.png",
+  },
+  {
+    id: 2,
+    category: "Animation",
+    title: "GSAP + React",
+    description: "Professional-grade animations with GreenSock in React",
+    link: "https://gsap.com/react",
+    image: "/images/blog2.png",
+  },
+  {
+    id: 3,
+    category: "Styling",
+    title: "Tailwind CSS",
+    description: "Utility-first CSS framework for rapid UI development",
+    link: "https://tailwindcss.com",
     image: "/images/blog3.png",
-    link: "https://jsmastery.com/blog/the-ultimate-guide-to-mastering-gsap-animations",
+  },
+];
+
+const bookmarks = [
+  {
+    id: 1,
+    category: "Documentation",
+    title: "MDN Web Docs",
+    description: "Comprehensive web development documentation and guides",
+    link: "https://developer.mozilla.org",
+    image: "/images/blog1.png",
+  },
+  {
+    id: 2,
+    category: "Community",
+    title: "GitHub Discussions",
+    description: "Collaborate and learn from the developer community",
+    link: "https://github.com",
+    image: "/images/blog2.png",
+  },
+  {
+    id: 3,
+    category: "Tools",
+    title: "Can I Use",
+    description: "Browser compatibility tables for web technologies",
+    link: "https://caniuse.com",
+    image: "/images/blog3.png",
   },
 ];
 
@@ -212,7 +269,9 @@ export {
   navLinks,
   navIcons,
   dockApps,
-  blogPosts,
+  learningJourney,
+  techRecommendations,
+  bookmarks,
   techStack,
   socials,
   photosLinks,
