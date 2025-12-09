@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  Globe,
   MoveRight,
   PanelLeft,
   Plus,
@@ -130,7 +131,10 @@ const Safari = () => {
 
             <div className="space-y-6">
               {currentData.map(
-                ({ id, title, link, image, category, description }, index) => (
+                (
+                  { id, title, link, image, icon, category, description },
+                  index
+                ) => (
                   <div
                     key={id}
                     className="group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-blue-200 hover:-translate-y-1"
@@ -144,11 +148,18 @@ const Safari = () => {
                       {/* Image section with enhanced styling */}
                       <div className="col-span-3 flex items-center justify-center">
                         <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-gradient-to-br from-blue-50 to-purple-50 p-4 group-hover:scale-105 transition-transform duration-300">
-                          <img
-                            src={image}
-                            alt={title}
-                            className="w-full h-full object-contain drop-shadow-md"
-                          />
+                          {icon === "Globe" ? (
+                            <Globe
+                              className="w-full h-full text-blue-600"
+                              strokeWidth={1.5}
+                            />
+                          ) : (
+                            <img
+                              src={image}
+                              alt={title}
+                              className="w-full h-full object-contain drop-shadow-md"
+                            />
+                          )}
                           <div className="absolute inset-0 ring-1 ring-inset ring-gray-200 rounded-xl"></div>
                         </div>
                       </div>
